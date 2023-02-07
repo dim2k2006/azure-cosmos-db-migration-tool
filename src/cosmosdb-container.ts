@@ -16,7 +16,7 @@ type BulkProcessOperation =
   | UpsertOperationInput
   | DeleteOperationInput;
 
-export default class CosmosDBContainer<T extends ItemDefinition> {
+export default class CosmosDBContainer {
   protected readonly container: Container;
 
   constructor({ container }: { container: Container }) {
@@ -24,7 +24,7 @@ export default class CosmosDBContainer<T extends ItemDefinition> {
   }
 
   private omitCosmosProperties = (data: ItemDefinition & Resource) =>
-    omit(data, ['_rid', '_self', '_etag', '_attachments', '_ts']) as T;
+    omit(data, ['_rid', '_self', '_etag', '_attachments', '_ts']);
 
   bulkProcess = async (operations: BulkProcessOperation[]): Promise<void> => {
     const chunkedOperations = chunk(operations, 100);
@@ -50,13 +50,13 @@ export default class CosmosDBContainer<T extends ItemDefinition> {
     await iter(chunkedOperations);
   };
 
-  find = async (query: SqlQuerySpec): Promise<T[]> => {
+  find = async (query: SqlQuerySpec): Promise<ItemDefinition[]> => {
     const { resources } = await this.container.items.query(query).fetchAll();
 
     return (resources || []).map(this.omitCosmosProperties);
   };
 
-  create = async (data: T) => {
+  create = async (data: ItemDefinition) => {
     const { resource } = await this.container.items.create(data);
 
     if (!resource) {
@@ -70,7 +70,7 @@ export default class CosmosDBContainer<T extends ItemDefinition> {
     await this.bulkProcess(operations);
   };
 
-  upsert = async (item: T): Promise<T> => {
+  upsert = async (item: ItemDefinition): Promise<ItemDefinition> => {
     const { resource } = await this.container.items.upsert(item);
 
     if (!resource) {
