@@ -1,6 +1,8 @@
 import {
   Container,
   SqlQuerySpec,
+  CreateOperationInput,
+  UpsertOperationInput,
   DeleteOperationInput,
   ItemDefinition,
   Resource,
@@ -9,7 +11,12 @@ import chunk from 'lodash/chunk';
 import head from 'lodash/head';
 import omit from 'lodash/omit';
 
-export default class BaseCosmosDBContainer<T extends ItemDefinition> {
+type BulkProcessOperation =
+  | CreateOperationInput
+  | UpsertOperationInput
+  | DeleteOperationInput;
+
+export default class CosmosDBContainer<T extends ItemDefinition> {
   protected readonly container: Container;
 
   constructor({ container }: { container: Container }) {
@@ -19,64 +26,10 @@ export default class BaseCosmosDBContainer<T extends ItemDefinition> {
   private omitCosmosProperties = (data: ItemDefinition & Resource) =>
     omit(data, ['_rid', '_self', '_etag', '_attachments', '_ts']) as T;
 
-  find = async (query: SqlQuerySpec): Promise<T[]> => {
-    const { resources } = await this.container.items.query(query).fetchAll();
-
-    return (resources || []).map(this.omitCosmosProperties);
-  };
-
-  findOne = async (query: SqlQuerySpec): Promise<T | null> => {
-    const resources = await this.find(query);
-
-    return resources[0] || null;
-  };
-
-  upsert = async (item: T): Promise<T> => {
-    const { resource } = await this.container.items.upsert(item);
-
-    if (!resource) {
-      throw new Error(`Failed to upsert document ${JSON.stringify(item, null, 2)}`);
-    }
-
-    return this.omitCosmosProperties(resource);
-  };
-
-  update = async (itemId: string, data: T) => {
-    const documentToUpdate = this.container.item(itemId);
-
-    const { resource } = await documentToUpdate.replace(data);
-
-    if (!resource) {
-      throw new Error(
-        `Failed to update document. itemId: ${itemId}. data: ${JSON.stringify(
-          data,
-          null,
-          2,
-        )}`,
-      );
-    }
-
-    return this.omitCosmosProperties(resource);
-  };
-
-  create = async (data: T) => {
-    const { resource } = await this.container.items.create(data);
-
-    if (!resource) {
-      throw new Error(`Failed to create document ${JSON.stringify(data, null, 2)}`);
-    }
-
-    return this.omitCosmosProperties(resource);
-  };
-
-  delete = async (id: string, partitionKeyValue?: string): Promise<void> => {
-    await this.container.item(id, partitionKeyValue).delete();
-  };
-
-  bulkDelete = async (operations: DeleteOperationInput[]) => {
+  bulkProcess = async (operations: BulkProcessOperation[]): Promise<void> => {
     const chunkedOperations = chunk(operations, 100);
 
-    const iter = async (list: DeleteOperationInput[][]): Promise<void> => {
+    const iter = async (list: BulkProcessOperation[][]): Promise<void> => {
       if (list.length === 0) {
         return;
       }
@@ -95,5 +48,47 @@ export default class BaseCosmosDBContainer<T extends ItemDefinition> {
     };
 
     await iter(chunkedOperations);
+  };
+
+  find = async (query: SqlQuerySpec): Promise<T[]> => {
+    const { resources } = await this.container.items.query(query).fetchAll();
+
+    return (resources || []).map(this.omitCosmosProperties);
+  };
+
+  create = async (data: T) => {
+    const { resource } = await this.container.items.create(data);
+
+    if (!resource) {
+      throw new Error(`Failed to create document ${JSON.stringify(data, null, 2)}`);
+    }
+
+    return this.omitCosmosProperties(resource);
+  };
+
+  bulkCreate = async (operations: CreateOperationInput[]) => {
+    await this.bulkProcess(operations);
+  };
+
+  upsert = async (item: T): Promise<T> => {
+    const { resource } = await this.container.items.upsert(item);
+
+    if (!resource) {
+      throw new Error(`Failed to upsert document ${JSON.stringify(item, null, 2)}`);
+    }
+
+    return this.omitCosmosProperties(resource);
+  };
+
+  bulkUpsert = async (operations: UpsertOperationInput[]) => {
+    await this.bulkProcess(operations);
+  };
+
+  delete = async (id: string, partitionKeyValue?: string): Promise<void> => {
+    await this.container.item(id, partitionKeyValue).delete();
+  };
+
+  bulkDelete = async (operations: DeleteOperationInput[]) => {
+    await this.bulkProcess(operations);
   };
 }
