@@ -10,32 +10,35 @@ export enum OperationType {
   Delete = 'DELETE',
 }
 
-type BaseEngineInput = {
+type BaseMigrationConfig = {
   operationType: OperationType;
 };
 
-type CreateDataInput = BaseEngineInput & {
+type CreateDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Create;
   documents: unknown[];
 };
 
-type UpdateDataInput = BaseEngineInput & {
+type UpdateDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Update;
   selectFn: () => SqlQuerySpec;
   updateFn: (document: unknown) => unknown;
 };
 
-type DeleteDataInput = BaseEngineInput & {
+type DeleteDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Delete;
   selectFn: () => SqlQuerySpec;
   partitionKeySelectFn: (document: unknown) => string;
 };
 
-export type EngineInput = CreateDataInput | UpdateDataInput | DeleteDataInput;
+export type MigrationConfig =
+  | CreateDataMigrationConfig
+  | UpdateDataMigrationConfig
+  | DeleteDataMigrationConfig;
 
 const engine =
   (cosmosDbService: CosmosdbService) =>
-  async (input: EngineInput): Promise<void> => {
+  async (input: MigrationConfig): Promise<void> => {
     const getEngineFn = (): (() => Promise<void>) => {
       switch (input.operationType) {
         case OperationType.Create:
