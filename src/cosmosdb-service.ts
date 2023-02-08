@@ -16,7 +16,7 @@ type BulkProcessOperation =
   | UpsertOperationInput
   | DeleteOperationInput;
 
-export default class CosmosDBContainer {
+export default class CosmosdbService {
   protected readonly container: Container;
 
   constructor({ container }: { container: Container }) {

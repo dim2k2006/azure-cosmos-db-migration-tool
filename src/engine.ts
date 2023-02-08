@@ -1,17 +1,17 @@
 import { BulkOperationType, JSONObject, SqlQuerySpec } from '@azure/cosmos';
-import CosmosDBContainer from './cosmosdb-container';
+import CosmosdbService from './cosmosdb-service';
 import head from 'lodash/head';
 import Listr from 'listr';
 import readlineSync from 'readline-sync';
 
-enum OperationType {
+export enum OperationType {
   Create = 'CREATE',
   Update = 'UPDATE',
   Delete = 'DELETE',
 }
 
 type BaseEngineInput = {
-  cosmosDbContainer: CosmosDBContainer;
+  cosmosDbService: CosmosdbService;
   operationType: OperationType;
 };
 
@@ -23,20 +23,16 @@ type CreateDataInput = BaseEngineInput & {
 type UpdateDataInput = BaseEngineInput & {
   operationType: OperationType.Update;
   selectFn: () => SqlQuerySpec;
-  updateFn: (input: unknown) => unknown;
+  updateFn: (document: unknown) => unknown;
 };
 
 type DeleteDataInput = BaseEngineInput & {
   operationType: OperationType.Delete;
   selectFn: () => SqlQuerySpec;
-  partitionKeySelectFn: (input: unknown) => string;
+  partitionKeySelectFn: (document: unknown) => string;
 };
 
 type EngineInput = CreateDataInput | UpdateDataInput | DeleteDataInput;
-
-// TODO Add https://www.npmjs.com/package/readline-sync
-
-// TODO Add listr
 
 const engine = async (input: EngineInput): Promise<void> => {
   const getEngineFn = (): (() => Promise<void>) => {
@@ -61,7 +57,7 @@ const engine = async (input: EngineInput): Promise<void> => {
           const tasks = new Listr([
             {
               title: 'Creating documents',
-              task: () => input.cosmosDbContainer.bulkCreate(operations),
+              task: () => input.cosmosDbService.bulkCreate(operations),
             },
           ]);
 
@@ -70,7 +66,7 @@ const engine = async (input: EngineInput): Promise<void> => {
 
       case OperationType.Update:
         return async () => {
-          const documents = await input.cosmosDbContainer.find(input.selectFn());
+          const documents = await input.cosmosDbService.find(input.selectFn());
 
           const result = readlineSync.keyInYN(
             `Operation type: Update. Found: ${documents.length} documents. Proceed?`,
@@ -96,7 +92,7 @@ const engine = async (input: EngineInput): Promise<void> => {
           const tasks = new Listr([
             {
               title: 'Updating documents',
-              task: () => input.cosmosDbContainer.bulkUpsert(operations),
+              task: () => input.cosmosDbService.bulkUpsert(operations),
             },
           ]);
 
@@ -105,7 +101,7 @@ const engine = async (input: EngineInput): Promise<void> => {
 
       case OperationType.Delete:
         return async () => {
-          const documents = await input.cosmosDbContainer.find(input.selectFn());
+          const documents = await input.cosmosDbService.find(input.selectFn());
 
           const result = readlineSync.keyInYN(
             `Operation type: Delete. Found: ${documents.length} documents. Proceed?`,
@@ -124,7 +120,7 @@ const engine = async (input: EngineInput): Promise<void> => {
           const tasks = new Listr([
             {
               title: 'Deleting documents',
-              task: () => input.cosmosDbContainer.bulkDelete(operations),
+              task: () => input.cosmosDbService.bulkDelete(operations),
             },
           ]);
 
