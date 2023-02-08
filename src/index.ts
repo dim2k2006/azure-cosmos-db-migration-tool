@@ -22,7 +22,7 @@ const main = async () => {
   const cosmosDbService = getCosmosDbService();
 
   const selectFn = (): SqlQuerySpec => ({
-    query: `SELECT c.id, c.tenantId FROM c WHERE c.type = 'appProductsByDay' OFFSET 0 LIMIT 10000`,
+    query: `SELECT c.id, c.tenantId FROM c WHERE c.type = 'appEventsFlowByDay' OFFSET 0 LIMIT 10000`,
   });
 
   const partitionKeySelectFn = (document: unknown): string =>
