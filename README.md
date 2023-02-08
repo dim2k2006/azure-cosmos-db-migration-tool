@@ -2,9 +2,9 @@
 
 ## Installation
 
-1.`git clone git@github.com:ombori/azure-cosmos-db-migration-tool.git`
+1. `git clone git@github.com:ombori/azure-cosmos-db-migration-tool.git`
 
-2.`make init`
+2. `make init`
 
 3. Navigate to `.env` file that is created by `make init` command and fill in azure cosmos db information.
 
@@ -19,6 +19,7 @@ This migration tool supports 3 types of data migration:
 - create new data
 - update existing data
 - delete existing data
+
 
 1. Navigate to `src/migration.ts` file. This file is created by `make init` command.
 
