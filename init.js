@@ -1,7 +1,6 @@
 const fs = require('fs');
 
-const content = `
-import { SqlQuerySpec } from '@azure/cosmos';
+const content = `import { SqlQuerySpec } from '@azure/cosmos';
 import { MigrationConfig, OperationType } from './engine/engine';
 
 const migrationConfig: MigrationConfig = {};
