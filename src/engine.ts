@@ -11,7 +11,6 @@ export enum OperationType {
 }
 
 type BaseEngineInput = {
-  cosmosDbService: CosmosdbService;
   operationType: OperationType;
 };
 
@@ -32,106 +31,108 @@ type DeleteDataInput = BaseEngineInput & {
   partitionKeySelectFn: (document: unknown) => string;
 };
 
-type EngineInput = CreateDataInput | UpdateDataInput | DeleteDataInput;
+export type EngineInput = CreateDataInput | UpdateDataInput | DeleteDataInput;
 
-const engine = async (input: EngineInput): Promise<void> => {
-  const getEngineFn = (): (() => Promise<void>) => {
-    switch (input.operationType) {
-      case OperationType.Create:
-        return async () => {
-          const documentsCount = input.documents.length;
+const engine =
+  (cosmosDbService: CosmosdbService) =>
+  async (input: EngineInput): Promise<void> => {
+    const getEngineFn = (): (() => Promise<void>) => {
+      switch (input.operationType) {
+        case OperationType.Create:
+          return async () => {
+            const documentsCount = input.documents.length;
 
-          const result = readlineSync.keyInYN(
-            `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
-          );
+            const result = readlineSync.keyInYN(
+              `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
+            );
 
-          if (!result) {
-            return;
-          }
+            if (!result) {
+              return;
+            }
 
-          const operations = input.documents.map((document) => ({
-            operationType: BulkOperationType.Create,
-            resourceBody: document as JSONObject,
-          }));
+            const operations = input.documents.map((document) => ({
+              operationType: BulkOperationType.Create,
+              resourceBody: document as JSONObject,
+            }));
 
-          const tasks = new Listr([
-            {
-              title: 'Creating documents',
-              task: () => input.cosmosDbService.bulkCreate(operations),
-            },
-          ]);
+            const tasks = new Listr([
+              {
+                title: 'Creating documents',
+                task: () => cosmosDbService.bulkCreate(operations),
+              },
+            ]);
 
-          await tasks.run();
-        };
+            await tasks.run();
+          };
 
-      case OperationType.Update:
-        return async () => {
-          const documents = await input.cosmosDbService.find(input.selectFn());
+        case OperationType.Update:
+          return async () => {
+            const documents = await cosmosDbService.find(input.selectFn());
 
-          const result = readlineSync.keyInYN(
-            `Operation type: Update. Found: ${documents.length} documents. Proceed?`,
-          );
+            const result = readlineSync.keyInYN(
+              `Operation type: Update. Found: ${documents.length} documents. Proceed?`,
+            );
 
-          if (!result) {
-            return;
-          }
+            if (!result) {
+              return;
+            }
 
-          const firstDocument = head(documents);
+            const firstDocument = head(documents);
 
-          if (!firstDocument) {
-            return;
-          }
+            if (!firstDocument) {
+              return;
+            }
 
-          const newDocuments = documents.map(input.updateFn);
+            const newDocuments = documents.map(input.updateFn);
 
-          const operations = newDocuments.map((document) => ({
-            operationType: BulkOperationType.Upsert,
-            resourceBody: document as JSONObject,
-          }));
+            const operations = newDocuments.map((document) => ({
+              operationType: BulkOperationType.Upsert,
+              resourceBody: document as JSONObject,
+            }));
 
-          const tasks = new Listr([
-            {
-              title: 'Updating documents',
-              task: () => input.cosmosDbService.bulkUpsert(operations),
-            },
-          ]);
+            const tasks = new Listr([
+              {
+                title: 'Updating documents',
+                task: () => cosmosDbService.bulkUpsert(operations),
+              },
+            ]);
 
-          await tasks.run();
-        };
+            await tasks.run();
+          };
 
-      case OperationType.Delete:
-        return async () => {
-          const documents = await input.cosmosDbService.find(input.selectFn());
+        case OperationType.Delete:
+          return async () => {
+            const documents = await cosmosDbService.find(input.selectFn());
 
-          const result = readlineSync.keyInYN(
-            `Operation type: Delete. Found: ${documents.length} documents. Proceed?`,
-          );
+            const result = readlineSync.keyInYN(
+              `Operation type: Delete. Found: ${documents.length} documents. Proceed?`,
+            );
 
-          if (!result) {
-            return;
-          }
+            if (!result) {
+              return;
+            }
 
-          const operations = documents.map((document) => ({
-            operationType: BulkOperationType.Delete,
-            id: document.id as string,
-            partitionKey: input.partitionKeySelectFn(document),
-          }));
+            const operations = documents.map((document) => ({
+              operationType: BulkOperationType.Delete,
+              id: document.id as string,
+              partitionKey: input.partitionKeySelectFn(document),
+            }));
 
-          const tasks = new Listr([
-            {
-              title: 'Deleting documents',
-              task: () => input.cosmosDbService.bulkDelete(operations),
-            },
-          ]);
+            const tasks = new Listr([
+              {
+                title: 'Deleting documents',
+                task: () => cosmosDbService.bulkDelete(operations),
+              },
+            ]);
 
-          await tasks.run();
-        };
-    }
+            await tasks.run();
+          };
+      }
+    };
+
+    const engineFn = getEngineFn();
+
+    await engineFn();
   };
-
-  const engineFn = getEngineFn();
-
-  await engineFn();
-};
 
 export default engine;

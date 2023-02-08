@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
-import { CosmosClient, SqlQuerySpec } from '@azure/cosmos';
-import get from 'lodash/get';
+import { CosmosClient } from '@azure/cosmos';
 import CosmosdbService from './cosmosdb-service';
-import engine, { OperationType } from './engine';
+import engine from './engine';
+import migrationConfig from './migration';
 
 dotenv.config();
 
@@ -21,19 +21,7 @@ const getCosmosDbService = () => {
 const main = async () => {
   const cosmosDbService = getCosmosDbService();
 
-  const selectFn = (): SqlQuerySpec => ({
-    query: `SELECT c.id, c.tenantId FROM c WHERE c.type = 'appEventsFlowByDay' OFFSET 0 LIMIT 10000`,
-  });
-
-  const partitionKeySelectFn = (document: unknown): string =>
-    get(document, 'tenantId', '');
-
-  await engine({
-    operationType: OperationType.Delete,
-    selectFn,
-    partitionKeySelectFn,
-    cosmosDbService,
-  });
+  await engine(cosmosDbService)(migrationConfig);
 };
 
 main();
