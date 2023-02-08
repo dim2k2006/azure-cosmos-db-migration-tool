@@ -1,6 +1,8 @@
 import { BulkOperationType, JSONObject, SqlQuerySpec } from '@azure/cosmos';
 import CosmosDBContainer from './cosmosdb-container';
 import head from 'lodash/head';
+import Listr from 'listr';
+import readlineSync from 'readline-sync';
 
 enum OperationType {
   Create = 'CREATE',
@@ -41,17 +43,42 @@ const engine = async (input: EngineInput): Promise<void> => {
     switch (input.operationType) {
       case OperationType.Create:
         return async () => {
+          const documentsCount = input.documents.length;
+
+          const result = readlineSync.keyInYN(
+            `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
+          );
+
+          if (!result) {
+            return;
+          }
+
           const operations = input.documents.map((document) => ({
             operationType: BulkOperationType.Create,
             resourceBody: document as JSONObject,
           }));
 
-          await input.cosmosDbContainer.bulkCreate(operations);
+          const tasks = new Listr([
+            {
+              title: 'Creating documents',
+              task: () => input.cosmosDbContainer.bulkCreate(operations),
+            },
+          ]);
+
+          await tasks.run();
         };
 
       case OperationType.Update:
         return async () => {
           const documents = await input.cosmosDbContainer.find(input.selectFn());
+
+          const result = readlineSync.keyInYN(
+            `Operation type: Update. Found: ${documents.length} documents. Proceed?`,
+          );
+
+          if (!result) {
+            return;
+          }
 
           const firstDocument = head(documents);
 
@@ -66,12 +93,27 @@ const engine = async (input: EngineInput): Promise<void> => {
             resourceBody: document as JSONObject,
           }));
 
-          await input.cosmosDbContainer.bulkUpsert(operations);
+          const tasks = new Listr([
+            {
+              title: 'Updating documents',
+              task: () => input.cosmosDbContainer.bulkUpsert(operations),
+            },
+          ]);
+
+          await tasks.run();
         };
 
       case OperationType.Delete:
         return async () => {
           const documents = await input.cosmosDbContainer.find(input.selectFn());
+
+          const result = readlineSync.keyInYN(
+            `Operation type: Delete. Found: ${documents.length} documents. Proceed?`,
+          );
+
+          if (!result) {
+            return;
+          }
 
           const operations = documents.map((document) => ({
             operationType: BulkOperationType.Delete,
@@ -79,7 +121,14 @@ const engine = async (input: EngineInput): Promise<void> => {
             partitionKey: input.partitionKeySelectFn(document),
           }));
 
-          await input.cosmosDbContainer.bulkDelete(operations);
+          const tasks = new Listr([
+            {
+              title: 'Deleting documents',
+              task: () => input.cosmosDbContainer.bulkDelete(operations),
+            },
+          ]);
+
+          await tasks.run();
         };
     }
   };
