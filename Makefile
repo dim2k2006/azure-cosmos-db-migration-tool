@@ -2,7 +2,7 @@ install:
 	npm install
 
 start:
-	npx babel-node --extensions ".ts" -- src/index.ts
+	npx babel-node --extensions ".ts" -- src/engine/index.ts
 
 publish:
 	npm publish
