@@ -131,7 +131,7 @@ const engine = async (input: EngineInput): Promise<void> => {
 
   const engineFn = getEngineFn();
 
-  await engineFn;
+  await engineFn();
 };
 
 export default engine;
