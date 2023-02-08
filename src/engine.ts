@@ -1,7 +1,6 @@
 import { BulkOperationType, JSONObject, SqlQuerySpec } from '@azure/cosmos';
 import CosmosDBContainer from './cosmosdb-container';
 import head from 'lodash/head';
-import isEqual from 'lodash/isEqual';
 
 enum OperationType {
   Create = 'CREATE',
@@ -23,7 +22,6 @@ type UpdateDataInput = BaseEngineInput & {
   operationType: OperationType.Update;
   selectFn: () => SqlQuerySpec;
   updateFn: (input: unknown) => unknown;
-  rollbackFn: (input: unknown) => unknown;
 };
 
 type DeleteDataInput = BaseEngineInput & {
@@ -33,6 +31,10 @@ type DeleteDataInput = BaseEngineInput & {
 };
 
 type EngineInput = CreateDataInput | UpdateDataInput | DeleteDataInput;
+
+// TODO Add https://www.npmjs.com/package/readline-sync
+
+// TODO Add listr
 
 const engine = async (input: EngineInput): Promise<void> => {
   const getEngineFn = (): (() => Promise<void>) => {
@@ -55,10 +57,6 @@ const engine = async (input: EngineInput): Promise<void> => {
 
           if (!firstDocument) {
             return;
-          }
-
-          if (!isEqual(input.rollbackFn(input.updateFn(firstDocument)), firstDocument)) {
-            throw new Error('Rollback function is not valid');
           }
 
           const newDocuments = documents.map(input.updateFn);
