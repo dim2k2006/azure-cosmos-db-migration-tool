@@ -36,7 +36,9 @@ type CreateDataMigrationConfigFromJson = BaseCreateDataMigrationConfig & {
 type CreateDataMigrationConfigFromCsv = BaseCreateDataMigrationConfig & {
   inputType: InputType.Csv;
   filePath: string;
-  options?: csv.Options & { mapRow?: <T extends Object>(row: T) => unknown };
+  options?: csv.Options & {
+    mapRow?: (row: Record<string, unknown>) => Record<string, unknown>;
+  };
 };
 
 type CreateDataMigrationConfig =
@@ -102,14 +104,6 @@ const engine =
             const documents = await documentsFn();
 
             const documentsCount = documents.length;
-
-            console.log('documents', documents);
-
-            fs.writeFileSync(
-              'documents.json',
-              JSON.stringify(documents, null, 2),
-              'utf8',
-            );
 
             const result = readlineSync.keyInYN(
               `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
