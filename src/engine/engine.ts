@@ -103,6 +103,14 @@ const engine =
 
             const documentsCount = documents.length;
 
+            console.log('documents', documents);
+
+            fs.writeFileSync(
+              'documents.json',
+              JSON.stringify(documents, null, 2),
+              'utf8',
+            );
+
             const result = readlineSync.keyInYN(
               `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
             );
