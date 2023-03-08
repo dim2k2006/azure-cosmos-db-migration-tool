@@ -1,8 +1,12 @@
 import { BulkOperationType, JSONObject, SqlQuerySpec } from '@azure/cosmos';
 import CosmosdbService from './cosmosdb-service';
 import head from 'lodash/head';
+import identity from 'lodash/identity';
 import Listr from 'listr';
 import readlineSync from 'readline-sync';
+import csv from 'csv-parser';
+import fs from 'fs';
+import path from 'path';
 
 export enum OperationType {
   Create = 'CREATE',
@@ -14,10 +18,30 @@ type BaseMigrationConfig = {
   operationType: OperationType;
 };
 
-type CreateDataMigrationConfig = BaseMigrationConfig & {
+export enum InputType {
+  Json = 'JSON',
+  Csv = 'CSV',
+}
+
+type BaseCreateDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Create;
+  inputType: InputType;
+};
+
+type CreateDataMigrationConfigFromJson = BaseCreateDataMigrationConfig & {
+  inputType: InputType.Json;
   documents: unknown[];
 };
+
+type CreateDataMigrationConfigFromCsv = BaseCreateDataMigrationConfig & {
+  inputType: InputType.Csv;
+  filePath: string;
+  options?: csv.Options & { mapRow?: <T extends Object>(row: T) => unknown };
+};
+
+type CreateDataMigrationConfig =
+  | CreateDataMigrationConfigFromJson
+  | CreateDataMigrationConfigFromCsv;
 
 type UpdateDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Update;
@@ -36,6 +60,8 @@ export type MigrationConfig =
   | UpdateDataMigrationConfig
   | DeleteDataMigrationConfig;
 
+const genFullFilePath = (filepath: string) => path.resolve(process.cwd(), filepath);
+
 const engine =
   (cosmosDbService: CosmosdbService) =>
   async (input: MigrationConfig): Promise<void> => {
@@ -43,7 +69,39 @@ const engine =
       switch (input.operationType) {
         case OperationType.Create:
           return async () => {
-            const documentsCount = input.documents.length;
+            const getDocuments = (): (() => Promise<unknown[]>) => {
+              switch (input.inputType) {
+                case InputType.Json:
+                  return async () => input.documents;
+
+                case InputType.Csv:
+                  return async () => {
+                    return new Promise((resolve, reject) => {
+                      const results = [] as unknown[];
+
+                      const mapRow = input.options?.mapRow ?? identity;
+
+                      fs.createReadStream(genFullFilePath(input.filePath))
+                        .pipe(csv(input.options))
+                        .on('data', (data) => {
+                          results.push(mapRow(data));
+                        })
+                        .on('end', () => {
+                          resolve(results);
+                        })
+                        .on('error', (error) => {
+                          reject(error);
+                        });
+                    });
+                  };
+              }
+            };
+
+            const documentsFn = getDocuments();
+
+            const documents = await documentsFn();
+
+            const documentsCount = documents.length;
 
             const result = readlineSync.keyInYN(
               `Operation type: Create. Documents count: ${documentsCount}. Proceed?`,
@@ -53,7 +111,7 @@ const engine =
               return;
             }
 
-            const operations = input.documents.map((document) => ({
+            const operations = documents.map((document) => ({
               operationType: BulkOperationType.Create,
               resourceBody: document as JSONObject,
             }));
