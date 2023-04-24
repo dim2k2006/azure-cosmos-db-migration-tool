@@ -3,3 +3,5 @@ dist
 .idea
 .env
 migration.ts
+input.csv
+input.json
