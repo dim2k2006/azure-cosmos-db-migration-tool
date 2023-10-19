@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { CosmosClient } from '@azure/cosmos';
-import CosmosdbService from './cosmosdb-service';
+import CosmosdbService from '../services/cosmosdb-service';
 import engine from './engine';
 import migrationConfig from '../migration';
 

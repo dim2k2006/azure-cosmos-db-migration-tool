@@ -1,5 +1,5 @@
 import { BulkOperationType, JSONObject, SqlQuerySpec } from '@azure/cosmos';
-import CosmosdbService from './cosmosdb-service';
+import CosmosdbService from '../services/cosmosdb-service';
 import head from 'lodash/head';
 import identity from 'lodash/identity';
 import Listr from 'listr';
