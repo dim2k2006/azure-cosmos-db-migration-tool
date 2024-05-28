@@ -21,6 +21,7 @@ type BaseMigrationConfig = {
 export enum InputType {
   Json = 'JSON',
   Csv = 'CSV',
+  CosmosDb = 'COSMOS_DB',
 }
 
 type BaseCreateDataMigrationConfig = BaseMigrationConfig & {
@@ -41,9 +42,15 @@ type CreateDataMigrationConfigFromCsv = BaseCreateDataMigrationConfig & {
   };
 };
 
+type CreateDataMigrationConfigFromCosmosDb = BaseCreateDataMigrationConfig & {
+  inputType: InputType.CosmosDb;
+  selectFn: () => SqlQuerySpec;
+};
+
 type CreateDataMigrationConfig =
   | CreateDataMigrationConfigFromJson
-  | CreateDataMigrationConfigFromCsv;
+  | CreateDataMigrationConfigFromCsv
+  | CreateDataMigrationConfigFromCosmosDb;
 
 type UpdateDataMigrationConfig = BaseMigrationConfig & {
   operationType: OperationType.Update;
@@ -65,7 +72,7 @@ export type MigrationConfig =
 const genFullFilePath = (filepath: string) => path.resolve(process.cwd(), filepath);
 
 const engine =
-  (cosmosDbService: CosmosdbService) =>
+  (cosmosDbService: CosmosdbService, inputCosmosDbService: CosmosdbService) =>
   async (input: MigrationConfig): Promise<void> => {
     const getEngineFn = (): (() => Promise<void>) => {
       switch (input.operationType) {
@@ -96,6 +103,11 @@ const engine =
                         });
                     });
                   };
+
+                case InputType.CosmosDb:
+                  return async () => {
+                    return inputCosmosDbService.find(input.selectFn());
+                  }
               }
             };
 
