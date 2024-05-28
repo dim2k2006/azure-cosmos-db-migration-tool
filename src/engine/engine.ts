@@ -126,14 +126,14 @@ const engine =
             }
 
             const operations = documents.map((document) => ({
-              operationType: BulkOperationType.Create,
+              operationType: BulkOperationType.Upsert,
               resourceBody: document as JSONObject,
             }));
 
             const tasks = new Listr([
               {
                 title: 'Creating documents',
-                task: () => cosmosDbService.bulkCreate(operations),
+                task: () => cosmosDbService.bulkUpsert(operations),
               },
             ]);
 
