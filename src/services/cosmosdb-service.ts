@@ -6,9 +6,10 @@ import {
   DeleteOperationInput,
   ItemDefinition,
   Resource,
+  OperationResponse,
 } from '@azure/cosmos';
 import chunk from 'lodash/chunk';
-import uniqBy from 'lodash/uniqBy';
+import get from 'lodash/get';
 import omit from 'lodash/omit';
 
 type BulkProcessOperation =
@@ -28,6 +29,48 @@ export default class CosmosdbService {
   private omitCosmosProperties = (data: ItemDefinition & Resource) =>
     omit(data, ['_rid', '_self', '_etag', '_attachments', '_ts']);
 
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async processChunk(operations: BulkProcessOperation[]): Promise<OperationResponse[]> {
+    const operationResponse = await this.container.items.bulk(operations);
+
+    const failedOperationsResponse = operationResponse.filter((operationResponse) => {
+      return !this.successStatusCodes.includes(operationResponse.statusCode);
+    });
+
+    if (failedOperationsResponse.length === 0) {
+      return operationResponse;
+    }
+
+    const initialFailedOperations: BulkProcessOperation[] = [];
+
+    const failedOperations = operationResponse.reduce((accumulator, operationResponse, index) => {
+      const { statusCode } = operationResponse;
+
+      if (this.successStatusCodes.includes(statusCode)) {
+        return accumulator;
+      }
+
+      const operation = operations[index];
+
+      const newAccumulator = [...accumulator, operation];
+
+      return newAccumulator;
+    }, initialFailedOperations);
+
+    const maxRetryAfterMilliseconds = failedOperationsResponse.reduce((maxRetryAfter, failedOperation) => {
+      const retryAfterMilliseconds = get(failedOperation, 'retryAfterMilliseconds', 0) as number;
+
+      return Math.max(maxRetryAfter, retryAfterMilliseconds ?? 0);
+    }, 0);
+
+    await this.sleep(maxRetryAfterMilliseconds);
+
+    return this.processChunk(failedOperations)
+  }
+
   bulkProcess = async (operations: BulkProcessOperation[]): Promise<void> => {
     const chunkedOperations = chunk(operations, 100);
 
@@ -44,24 +87,7 @@ export default class CosmosdbService {
         return;
       }
 
-      const operationResponse = await this.container.items.bulk(firstChunk);
-
-      const failedOperations = operationResponse.filter((operationResponse) => {
-        return !this.successStatusCodes.includes(operationResponse.statusCode);
-      });
-
-      if (failedOperations.length > 0) {
-        const uniqueFailedStatusCodes = uniqBy(
-          failedOperations.map((failedResponse) => failedResponse.statusCode),
-          'statusCode',
-        );
-
-        throw new Error(
-          `Failed to bulk upsert items. Failed status codes: ${uniqueFailedStatusCodes.join(
-            ', ',
-          )}.`,
-        );
-      }
+      await this.processChunk(firstChunk)
 
       await iter(rest);
     };
