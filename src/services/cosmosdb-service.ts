@@ -8,7 +8,7 @@ import {
   Resource,
 } from '@azure/cosmos';
 import chunk from 'lodash/chunk';
-import head from 'lodash/head';
+import uniqBy from 'lodash/uniqBy';
 import omit from 'lodash/omit';
 
 type BulkProcessOperation =
@@ -18,6 +18,8 @@ type BulkProcessOperation =
 
 export default class CosmosdbService {
   protected readonly container: Container;
+
+  private readonly successStatusCodes = [200, 201, 204];
 
   constructor({ container }: { container: Container }) {
     this.container = container;
@@ -34,17 +36,34 @@ export default class CosmosdbService {
         return;
       }
 
-      const firstChunk = head(list);
+      const [firstChunk, ...rest] = list;
 
       if (!firstChunk) {
-        await iter(list.slice(1));
+        await iter(rest);
 
         return;
       }
 
-      await this.container.items.bulk(firstChunk);
+      const operationResponse = await this.container.items.bulk(firstChunk);
 
-      await iter(list.slice(1));
+      const failedOperations = operationResponse.filter((operationResponse) => {
+        return !this.successStatusCodes.includes(operationResponse.statusCode);
+      });
+
+      if (failedOperations.length > 0) {
+        const uniqueFailedStatusCodes = uniqBy(
+          failedOperations.map((failedResponse) => failedResponse.statusCode),
+          'statusCode',
+        );
+
+        throw new Error(
+          `Failed to bulk upsert items. Failed status codes: ${uniqueFailedStatusCodes.join(
+            ', ',
+          )}.`,
+        );
+      }
+
+      await iter(rest);
     };
 
     await iter(chunkedOperations);
